@@ -81,6 +81,7 @@ export function Editor({ document, onSave, onBack }: EditorProps) {
     >
       <EditorToolbar
         title={title}
+        content={content}
         format={format}
         saveStatus={status}
         onFormatChange={handleFormatChange}

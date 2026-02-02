@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -6,8 +7,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
 import { DocumentFormat, formatOptions, languageMap } from './languageMap';
 import { SaveStatus } from '@/lib/autosave';
+import { exportDocument, ExportFormat } from '@/lib/documentExport';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Save, 
@@ -16,12 +26,17 @@ import {
   Check, 
   Loader2, 
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  FileDown,
+  FileCode,
+  FileType
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface EditorToolbarProps {
   title: string;
+  content: string;
   format: DocumentFormat;
   saveStatus: SaveStatus;
   onFormatChange: (format: DocumentFormat) => void;
@@ -74,6 +89,7 @@ const SaveIndicator = ({ status }: { status: SaveStatus }) => {
 
 export function EditorToolbar({
   title,
+  content,
   format,
   saveStatus,
   onFormatChange,
@@ -81,6 +97,23 @@ export function EditorToolbar({
   onSave,
   onBack,
 }: EditorToolbarProps) {
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async (exportAs: ExportFormat) => {
+    setIsExporting(true);
+    try {
+      await exportDocument({ title, content, format, exportAs });
+      toast.success(`Exported as ${exportAs.toUpperCase()}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export document');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const nativeExtension = format === 'markdown' ? '.md' : format === 'xml' ? '.xml' : '.txt';
+
   return (
     <div className="flex items-center justify-between h-14 px-4 border-b border-border bg-card/50 backdrop-blur-sm">
       <div className="flex items-center gap-3">
@@ -134,14 +167,42 @@ export function EditorToolbar({
           Save
         </Button>
         
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <Download className="h-4 w-4 mr-1.5" />
-          Export
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground"
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-1.5" />
+              )}
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              Export format
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleExport('pdf')} className="gap-2">
+              <FileDown className="h-4 w-4 text-red-400" />
+              <span>PDF Document</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('html')} className="gap-2">
+              <FileCode className="h-4 w-4 text-orange-400" />
+              <span>HTML File</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleExport('native')} className="gap-2">
+              <FileType className="h-4 w-4 text-blue-400" />
+              <span>Native ({nativeExtension})</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
