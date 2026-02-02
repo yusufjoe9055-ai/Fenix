@@ -4,80 +4,72 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Navbar } from '@/components/Navbar';
 import { DocumentList } from '@/components/DocumentList';
 import { Editor, Document } from '@/components/Editor/Editor';
-import { DocumentFormat } from '@/components/Editor/languageMap';
+import { useAuth } from '@/hooks/useAuth';
+import { useDocuments } from '@/hooks/useDocuments';
 import { toast } from 'sonner';
-
-// Mock data for demonstration
-const mockDocuments: Document[] = [
-  {
-    id: '1',
-    title: 'Getting Started Guide',
-    content: '# Getting Started\n\nWelcome to TextForge! This is a sample Markdown document.\n\n## Features\n\n- Auto-save\n- Cloud persistence\n- Multi-format support',
-    format: 'markdown',
-    updated_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 mins ago
-  },
-  {
-    id: '2',
-    title: 'API Configuration',
-    content: '<?xml version="1.0" encoding="UTF-8"?>\n<configuration>\n  <api>\n    <endpoint>https://api.example.com</endpoint>\n    <timeout>30</timeout>\n  </api>\n</configuration>',
-    format: 'xml',
-    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-  },
-  {
-    id: '3',
-    title: 'Quick Notes',
-    content: 'Just some quick notes...\n\n- Buy groceries\n- Finish the project\n- Call mom',
-    format: 'text',
-    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-  },
-];
+import { Loader2 } from 'lucide-react';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [documents, setDocuments] = useState<Document[]>(mockDocuments);
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { 
+    documents, 
+    isLoading: docsLoading, 
+    createDocument, 
+    updateDocument, 
+    deleteDocument,
+    isCreating 
+  } = useDocuments();
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
 
-  const handleCreateDocument = () => {
-    const newDoc: Document = {
-      id: Date.now().toString(),
-      title: 'Untitled Document',
-      content: '',
-      format: 'markdown' as DocumentFormat,
-      updated_at: new Date().toISOString(),
-    };
-    setDocuments([newDoc, ...documents]);
-    setSelectedDocument(newDoc);
-    toast.success('New document created');
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, authLoading, navigate]);
+
+  const handleCreateDocument = async () => {
+    try {
+      const newDoc = await createDocument();
+      setSelectedDocument(newDoc);
+      toast.success('New document created');
+    } catch (error) {
+      toast.error('Failed to create document');
+    }
   };
 
   const handleSelectDocument = (doc: Document) => {
     setSelectedDocument(doc);
   };
 
-  const handleDeleteDocument = (id: string) => {
-    setDocuments(documents.filter((doc) => doc.id !== id));
-    if (selectedDocument?.id === id) {
-      setSelectedDocument(null);
+  const handleDeleteDocument = async (id: string) => {
+    try {
+      await deleteDocument(id);
+      if (selectedDocument?.id === id) {
+        setSelectedDocument(null);
+      }
+      toast.success('Document deleted');
+    } catch (error) {
+      toast.error('Failed to delete document');
     }
-    toast.success('Document deleted');
   };
 
   const handleSaveDocument = async (updates: Partial<Document>) => {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (!updates.id) return;
     
-    setDocuments((prev) =>
-      prev.map((doc) =>
-        doc.id === updates.id
-          ? { ...doc, ...updates, updated_at: new Date().toISOString() }
-          : doc
-      )
-    );
-
-    if (selectedDocument?.id === updates.id) {
-      setSelectedDocument((prev) =>
-        prev ? { ...prev, ...updates, updated_at: new Date().toISOString() } : null
-      );
+    try {
+      await updateDocument(updates as Partial<Document> & { id: string });
+      
+      // Update the selected document with new values
+      if (selectedDocument?.id === updates.id) {
+        setSelectedDocument((prev) =>
+          prev ? { ...prev, ...updates, updated_at: new Date().toISOString() } : null
+        );
+      }
+    } catch (error) {
+      toast.error('Failed to save document');
+      throw error;
     }
   };
 
@@ -85,10 +77,19 @@ const Dashboard = () => {
     setSelectedDocument(null);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     toast.success('Logged out successfully');
     navigate('/');
   };
+
+  if (authLoading || docsLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -114,6 +115,7 @@ const Dashboard = () => {
                 onSelect={handleSelectDocument}
                 onDelete={handleDeleteDocument}
                 onCreate={handleCreateDocument}
+                isCreating={isCreating}
               />
             </main>
           </motion.div>
