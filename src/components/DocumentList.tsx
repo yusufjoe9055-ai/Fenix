@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { FileText, MoreVertical, Trash2, Clock, Plus } from 'lucide-react';
+import { FileText, MoreVertical, Trash2, Clock, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ interface DocumentListProps {
   onSelect: (doc: Document) => void;
   onDelete: (id: string) => void;
   onCreate: () => void;
+  isCreating?: boolean;
 }
 
 const formatBadgeColors: Record<DocumentFormat, string> = {
@@ -25,7 +26,7 @@ const formatBadgeColors: Record<DocumentFormat, string> = {
   text: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
 };
 
-export function DocumentList({ documents, onSelect, onDelete, onCreate }: DocumentListProps) {
+export function DocumentList({ documents, onSelect, onDelete, onCreate, isCreating }: DocumentListProps) {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
@@ -35,9 +36,13 @@ export function DocumentList({ documents, onSelect, onDelete, onCreate }: Docume
             {documents.length} {documents.length === 1 ? 'document' : 'documents'}
           </p>
         </div>
-        <Button onClick={onCreate} className="gap-2">
-          <Plus className="h-4 w-4" />
-          New Document
+        <Button onClick={onCreate} className="gap-2" disabled={isCreating}>
+          {isCreating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Plus className="h-4 w-4" />
+          )}
+          {isCreating ? 'Creating...' : 'New Document'}
         </Button>
       </div>
 
