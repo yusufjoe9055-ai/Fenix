@@ -1,164 +1,102 @@
 
 
-# Implementation Plan: Document/Design Naming & User Settings
+# Refactor for Local Development & External Supabase
 
 ## Overview
-This plan adds two key features:
-1. **Rename functionality** for documents and system designs directly from the list view
-2. **User Settings page** with profile management and account options
+This plan removes the Lovable-specific `lovable-tagger` dev dependency and restructures the Supabase client to use standard environment variable names (`VITE_SUPABASE_ANON_KEY` instead of `VITE_SUPABASE_PUBLISHABLE_KEY`). It also creates a `.env.example` and documents the local setup process.
+
+**Important note:** This project does NOT use Clerk or Next.js -- it's a Vite + React + Supabase app with its own auth via Supabase Auth. No Clerk integration is needed.
 
 ---
 
-## Part 1: Rename Documents & System Designs
+## Changes
 
-### Current State
-- Documents and system designs can only have their names set when editing (via the editor toolbar for documents)
-- No quick rename option exists in the list view in `ProjectWorkspace.tsx`
-- The dropdown menus only have a "Delete" option
+### 1. Remove `lovable-tagger`
+- **`package.json`**: Remove `"lovable-tagger"` from `devDependencies`
+- **`vite.config.ts`**: Remove the `import { componentTagger } from "lovable-tagger"` and its usage in the plugins array. The config becomes a clean Vite + React setup.
 
-### Implementation
+### 2. Create `src/lib/supabase.ts` (new canonical client)
+A standard Supabase client file using `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`:
 
-#### 1.1 Add Rename Dialog Component
-Create a reusable `RenameDialog.tsx` component:
-- Modal dialog with an input field for the new name
-- Validates input (not empty, max length)
-- Cancel and Save buttons
-- Used for both documents and system designs
-
-#### 1.2 Update ProjectWorkspace.tsx
-- Add "Rename" option to the dropdown menus for both documents and system designs
-- Integrate the RenameDialog component
-- Add state for tracking which item is being renamed
-- Call `updateDocument` or `updateDesign` on save
-
-#### 1.3 Update System Architect Header
-- Make the design name in `SystemArchitect.tsx` editable (similar to how document titles work in `EditorToolbar.tsx`)
-- Add an inline editable input that triggers `updateDesign` with the new name
-
----
-
-## Part 2: User Settings
-
-### Features
-- View/update display name
-- View email (read-only)
-- Change password
-- Sign out
-- Delete account (with confirmation)
-
-### Implementation
-
-#### 2.1 Database: Add Profiles Table
-Create a migration to add a `profiles` table:
 ```text
-profiles
-- id (uuid, primary key, references auth.users)
-- display_name (text, nullable)
-- created_at (timestamp)
-- updated_at (timestamp)
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  }
+});
 ```
 
-Add RLS policies for user-owned data access.
+### 3. Re-export from old path for compatibility
+Update `src/integrations/supabase/client.ts` to simply re-export from the new location so existing imports across the codebase continue to work without a mass find-and-replace:
 
-Create a trigger to auto-create a profile when a user signs up.
+```text
+export { supabase } from '@/lib/supabase';
+```
 
-#### 2.2 Create useProfile Hook
-New hook `src/hooks/useProfile.tsx`:
-- Fetch the current user's profile
-- Update profile (display_name)
-- Handle loading states
+### 4. Update all direct imports (5 files)
+Change imports in these hooks from `@/integrations/supabase/client` to `@/lib/supabase`:
+- `src/hooks/useAuth.tsx`
+- `src/hooks/useDocuments.tsx`
+- `src/hooks/useProjects.tsx`
+- `src/hooks/useProfile.tsx`
+- `src/hooks/useSystemDesigns.tsx`
 
-#### 2.3 Create Settings Page
-New page `src/pages/Settings.tsx`:
-- Profile section: display name input with save button
-- Account section: email (read-only), change password button
-- Danger zone: delete account button with confirmation dialog
+### 5. Create `.env.example`
+```text
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+```
 
-#### 2.4 Add Password Change Functionality
-Extend `useAuth.tsx` with:
-- `updatePassword(newPassword)` method using Supabase auth
-
-#### 2.5 Add Delete Account Functionality
-Extend `useAuth.tsx` with:
-- Client-side sign out and account deletion flow
-- Note: Full account deletion requires a backend function for security
-
-#### 2.6 Update Navigation
-- Add Settings icon/link to `Navbar.tsx`
-- Route the User icon button to `/settings`
-- Add route in `App.tsx`
+### 6. Keep existing types file
+`src/integrations/supabase/types.ts` contains auto-generated database types. It stays as-is -- it's standard TypeScript with no platform lock-in.
 
 ---
 
-## File Changes Summary
+## What Does NOT Need Changing
+- **`tsconfig.json` / `tsconfig.app.json`**: Already standard Vite/TS config with `@/*` path alias. Works in VS Code out of the box.
+- **`vite.config.ts`**: Already standard after removing the tagger plugin. Uses `@vitejs/plugin-react-swc`, standard port 8080.
+- **`package.json` scripts**: `dev`, `build`, `preview`, `test` are already standard Vite commands.
+- **All component imports**: Already use standard `@/components/...` absolute imports via the tsconfig path alias.
+- **Auth system**: Uses standard `@supabase/supabase-js` auth -- no platform-specific wrappers.
+- **No edge functions exist** in `supabase/functions/`, so nothing to migrate there.
+
+---
+
+## Local Setup Guide (included as comment in `.env.example`)
+
+```text
+# 1. Clone the repo
+# 2. Copy this file: cp .env.example .env
+# 3. Fill in your Supabase project URL and anon key from:
+#    https://supabase.com/dashboard/project/YOUR_PROJECT/settings/api
+# 4. Install dependencies: npm install
+# 5. Run dev server: npm run dev
+# 6. Open http://localhost:8080
+```
+
+---
+
+## File Summary
 
 | File | Action |
 |------|--------|
-| `src/components/RenameDialog.tsx` | Create - reusable rename modal |
-| `src/pages/ProjectWorkspace.tsx` | Edit - add rename dropdown options |
-| `src/components/SystemArchitect/SystemArchitect.tsx` | Edit - editable name in header |
-| `supabase/migrations/[timestamp].sql` | Create - profiles table |
-| `src/hooks/useProfile.tsx` | Create - profile CRUD hook |
-| `src/hooks/useAuth.tsx` | Edit - add password update |
-| `src/pages/Settings.tsx` | Create - settings page |
-| `src/components/Navbar.tsx` | Edit - link to settings |
-| `src/App.tsx` | Edit - add /settings route |
-
----
-
-## Technical Details
-
-### RenameDialog Component
-```text
-Props:
-- open: boolean
-- onOpenChange: (open: boolean) => void
-- currentName: string
-- onSave: (newName: string) => Promise<void>
-- title: string (e.g., "Rename Document")
-```
-
-### Profiles Table Migration
-```text
-- Create profiles table with user_id foreign key
-- Enable RLS with policies for own-data access
-- Create trigger function to auto-create profile on signup
-```
-
-### Settings Page Layout
-```text
-+----------------------------------+
-|  Settings                        |
-+----------------------------------+
-|  Profile                         |
-|  +----------------------------+  |
-|  | Display Name: [________]   |  |
-|  | Email: user@email.com      |  |
-|  | [Save Changes]             |  |
-|  +----------------------------+  |
-|                                  |
-|  Security                        |
-|  +----------------------------+  |
-|  | [Change Password]          |  |
-|  +----------------------------+  |
-|                                  |
-|  Danger Zone                     |
-|  +----------------------------+  |
-|  | [Delete Account]           |  |
-|  +----------------------------+  |
-+----------------------------------+
-```
-
----
-
-## Execution Order
-
-1. Create `RenameDialog.tsx` component
-2. Update `ProjectWorkspace.tsx` with rename functionality
-3. Update `SystemArchitect.tsx` with editable name
-4. Create database migration for profiles table
-5. Create `useProfile.tsx` hook
-6. Update `useAuth.tsx` with password change
-7. Create `Settings.tsx` page
-8. Update `Navbar.tsx` and `App.tsx` with routing
-
+| `src/lib/supabase.ts` | Create -- new canonical Supabase client |
+| `src/integrations/supabase/client.ts` | Edit -- re-export from `@/lib/supabase` |
+| `src/hooks/useAuth.tsx` | Edit -- update import path |
+| `src/hooks/useDocuments.tsx` | Edit -- update import path |
+| `src/hooks/useProjects.tsx` | Edit -- update import path |
+| `src/hooks/useProfile.tsx` | Edit -- update import path |
+| `src/hooks/useSystemDesigns.tsx` | Edit -- update import path |
+| `vite.config.ts` | Edit -- remove lovable-tagger |
+| `package.json` | Edit -- remove lovable-tagger |
+| `.env.example` | Create |
