@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import ProjectWorkspace from "./pages/ProjectWorkspace";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 const App = () => (
   <TooltipProvider>
