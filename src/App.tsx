@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import ProjectWorkspace from "./pages/ProjectWorkspace";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 const App = () => (
   <TooltipProvider>
@@ -22,6 +23,7 @@ const App = () => (
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    <PWAInstallPrompt />
   </TooltipProvider>
 );
 
