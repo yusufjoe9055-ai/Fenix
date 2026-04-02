@@ -8,6 +8,7 @@ import {
   useNodesState,
   useEdgesState,
   Connection,
+  ConnectionLineType,
   Panel,
   MarkerType,
   type Node,
