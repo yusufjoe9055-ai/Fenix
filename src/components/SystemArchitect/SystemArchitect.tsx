@@ -390,11 +390,13 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack }: System
           zoomOnDoubleClick={!isDrawing}
           selectionOnDrag={false}
           className="bg-background"
+          connectionLineType={ConnectionLineType.SmoothStep}
+          connectionLineStyle={{ stroke: '#F59E0B', strokeWidth: 2, strokeDasharray: '6 3' }}
           defaultEdgeOptions={{
-            markerEnd: { type: MarkerType.ArrowClosed },
-            style: { stroke: 'hsl(var(--primary))' },
-          }}
-        >
+            type: 'smoothstep',
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#F59E0B', width: 20, height: 20 },
+            style: { stroke: '#F59E0B', strokeWidth: 2 },
+          }}>
           <Background color="hsl(var(--muted-foreground) / 0.2)" gap={20} />
           <Controls className="bg-card border border-border rounded-lg" />
           <MiniMap
