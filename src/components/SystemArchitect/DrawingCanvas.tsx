@@ -123,7 +123,7 @@ export function DrawingCanvas({ isActive, strokes, onStrokesChange }: DrawingCan
 
       {/* Drawing toolbar */}
       {isActive && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-card/95 backdrop-blur border border-border rounded-xl px-4 py-2 shadow-lg">
+        <div style={{ zIndex: 1001 }} className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-card/95 backdrop-blur border border-border rounded-xl px-4 py-2 shadow-lg">
           <Button
             variant={tool === 'pen' ? 'default' : 'ghost'}
             size="icon"
