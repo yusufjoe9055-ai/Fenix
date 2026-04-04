@@ -1,7 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { FileEdit, LogIn, User, LogOut, Menu, X } from 'lucide-react';
+import { LogIn, User, LogOut, Menu, X } from 'lucide-react';
+import fenixLogo from '@/assets/fenix-logo.png';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -24,8 +25,8 @@ export function Navbar({ isLoggedIn = false, onLogout }: NavbarProps) {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center group-hover:shadow-lg group-hover:shadow-primary/30 transition-shadow">
-              <FileEdit className="h-4 w-4 text-primary-foreground" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+              <img src={fenixLogo} alt="Fenix" className="w-8 h-8" />
             </div>
             <span className="font-semibold text-foreground text-lg">Fenix</span>
           </Link>

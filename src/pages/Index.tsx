@@ -3,16 +3,17 @@ import { Button } from '@/components/ui/button';
 import { Navbar } from '@/components/Navbar';
 import { useNavigate } from 'react-router-dom';
 import { 
-  FileEdit, 
   Code2, 
   Network, 
   Workflow,
   Wifi,
   Sparkles,
+  FileEdit,
   FileText,
   FileCode,
   ChevronRight
 } from 'lucide-react';
+import fenixLogo from '@/assets/fenix-logo.png';
 
 const features = [
   {
@@ -294,9 +295,7 @@ const Index = () => {
       <footer className="border-t border-border py-8 px-4">
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center">
-              <FileEdit className="h-3 w-3 text-primary-foreground" />
-            </div>
+            <img src={fenixLogo} alt="Fenix" className="w-6 h-6" />
             <span className="font-semibold text-foreground">Fenix</span>
           </div>
           <p className="text-sm text-muted-foreground">
