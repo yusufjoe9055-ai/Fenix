@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
-  ArrowLeft, Save, Plus, Pencil, Network, FlaskConical,
+  ArrowLeft, Save, Plus, Pencil, Network, FlaskConical, Palette,
   Database, Server, Monitor, Cloud, Cpu, HardDrive,
   LayoutList, ArrowUpDown, Repeat, Split,
   GitBranch, Circle, CheckCircle, ListOrdered, Layers,
@@ -64,7 +64,7 @@ const allIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutList, ArrowUpDown, Repeat, Split,
   GitBranch, Circle, CheckCircle, ListOrdered, Layers,
   Link, Hash, Triangle, Variable, MousePointer,
-  HelpCircle, Terminal,
+  HelpCircle, Terminal, Palette,
 };
 
 interface SystemArchitectProps {
