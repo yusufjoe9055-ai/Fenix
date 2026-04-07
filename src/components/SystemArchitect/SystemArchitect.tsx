@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { SystemDesign, BoardState } from '@/hooks/useSystemDesigns';
 import { ArchitectNode } from './ArchitectNode';
 import { DrawingCanvas, Stroke } from './DrawingCanvas';
+import { cn } from '@/lib/utils';
 import { systemDesignTemplates, algorithmTemplates, NodeTemplate } from './AlgorithmNodeTemplates';
 import { toast } from 'sonner';
 import {
