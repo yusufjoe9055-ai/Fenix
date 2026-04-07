@@ -113,6 +113,9 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack }: System
   const [strokes, setStrokes] = useState<Stroke[]>(
     (design.board_state as any).strokes || []
   );
+  const [customNodeDialog, setCustomNodeDialog] = useState(false);
+  const [customNodeColor, setCustomNodeColor] = useState('blue');
+  const [customNodeLabel, setCustomNodeLabel] = useState('Custom Node');
 
   // Escape key exits draw mode
   useEffect(() => {
