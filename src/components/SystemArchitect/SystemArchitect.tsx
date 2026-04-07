@@ -212,20 +212,32 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack }: System
     }
   }, [editingEdge, edgeLabelInput, setEdges]);
 
-  const addNode = (template: NodeTemplate) => {
+  const addNode = (template: NodeTemplate, overrideColor?: string, overrideLabel?: string) => {
+    if (template.type === 'custom' && !overrideColor) {
+      setCustomNodeDialog(true);
+      return;
+    }
     nodeIdCounter.current += 1;
     const newNode: ArchitectFlowNode = {
       id: `node-${nodeIdCounter.current}`,
       type: 'architect',
       position: { x: 250 + Math.random() * 100, y: 150 + Math.random() * 100 },
       data: {
-        label: template.label,
+        label: overrideLabel || template.label,
         nodeType: template.type,
         icon: template.icon,
-        color: template.color,
+        color: overrideColor || template.color,
       },
     };
     setNodes((nds) => [...nds, newNode]);
+  };
+
+  const handleCustomNodeAdd = () => {
+    const template = systemDesignTemplates.find(t => t.type === 'custom')!;
+    addNode(template, customNodeColor, customNodeLabel.trim() || 'Custom Node');
+    setCustomNodeDialog(false);
+    setCustomNodeLabel('Custom Node');
+    setCustomNodeColor('blue');
   };
 
   const handleManualSave = async () => {
