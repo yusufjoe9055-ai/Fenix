@@ -167,12 +167,19 @@ export function DrawingCanvas({ isActive, strokes, onStrokesChange }: DrawingCan
           pointerEvents: isActive ? 'all' : 'none',
           cursor: isActive ? 'crosshair' : 'default',
           zIndex: isActive ? 5 : 0,
+          touchAction: 'none',
         }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        onWheel={(e) => e.currentTarget.style.pointerEvents = 'none'}
+        onWheelCapture={(e) => {
+          // Let wheel events pass through to ReactFlow for zooming
+          e.currentTarget.style.pointerEvents = 'none';
+          requestAnimationFrame(() => {
+            if (svgRef.current) svgRef.current.style.pointerEvents = isActive ? 'all' : 'none';
+          });
+        }}
       >
         <defs>{defs}</defs>
         {/* Apply viewport transform so strokes are in world-space */}
