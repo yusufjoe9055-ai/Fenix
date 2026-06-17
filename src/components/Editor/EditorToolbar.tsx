@@ -98,6 +98,7 @@ export function EditorToolbar({
   onTitleChange,
   onSave,
   onBack,
+  onGeneratePRD,
 }: EditorToolbarProps) {
   const [isExporting, setIsExporting] = useState(false);
 
