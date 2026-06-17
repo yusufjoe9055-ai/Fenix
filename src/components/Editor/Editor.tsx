@@ -10,6 +10,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable';
+import { PRDGeneratorDialog } from '@/components/AI/PRDGeneratorDialog';
 
 export interface Document {
   id: string;
@@ -23,6 +24,7 @@ interface EditorProps {
   document: Document;
   onSave: (doc: Partial<Document>) => Promise<void>;
   onBack: () => void;
+  projectId?: string;
 }
 
 export function Editor({ document, onSave, onBack }: EditorProps) {
