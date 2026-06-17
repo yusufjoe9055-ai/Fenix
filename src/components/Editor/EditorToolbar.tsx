@@ -44,6 +44,7 @@ interface EditorToolbarProps {
   onTitleChange: (title: string) => void;
   onSave: () => void;
   onBack: () => void;
+  onGeneratePRD?: () => void;
 }
 
 const SaveIndicator = ({ status }: { status: SaveStatus }) => {
