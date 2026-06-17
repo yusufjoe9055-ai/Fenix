@@ -91,7 +91,19 @@ export function Editor({ document, onSave, onBack, projectId }: EditorProps) {
         onTitleChange={handleTitleChange}
         onSave={handleManualSave}
         onBack={onBack}
+        onGeneratePRD={projectId ? () => setPrdOpen(true) : undefined}
       />
+
+      {projectId && (
+        <PRDGeneratorDialog
+          open={prdOpen}
+          onOpenChange={setPrdOpen}
+          sourceTitle={title}
+          sourceContent={content}
+          sourceDocumentId={document.id}
+          projectId={projectId}
+        />
+      )}
 
       <div className="flex-1 overflow-hidden">
         {format === 'markdown' ? (
