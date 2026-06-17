@@ -167,6 +167,7 @@ const ProjectWorkspace = () => {
         document={selectedDocument}
         onSave={handleSaveDocument}
         onBack={() => setSelectedDocument(null)}
+        projectId={id}
       />
     );
   }
