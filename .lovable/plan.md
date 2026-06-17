@@ -1,56 +1,120 @@
 
+# Fenix AI Layer — Phase 1 + PRD Generator
 
-# Plan: Write PRD and Rebrand Landing Page to "Fenix"
+Implement the foundation (BYOK provider config with connection testing) plus the first core AI feature (Document → PRD Generator). Other features (vibe coding prompts, auto-generate nodes, agentic workflows) are deferred to later iterations.
 
-## PRD (Product Requirements Document)
+## Architecture decision: BYOK direct-from-browser
 
-Based on the actual codebase, here is what Fenix does:
+The spec mandates "zero-cost hosting": API keys stored in browser localStorage, all LLM calls made directly from the client. No proxy server, no Lovable Cloud edge function for inference. This is unusual but it is the spec's defining constraint, so we follow it.
 
-**Fenix** is a cloud-based developer workspace that combines document editing, system architecture design, and algorithm visualization into a single project-oriented platform. It is a PWA with offline support.
+Trade-off: API keys live in the user's browser localStorage in plaintext (optional passphrase encryption is listed as Phase 3+). Users only ever send their own keys to their chosen provider — never to Fenix servers.
 
-**Core Features:**
-1. **Project Management** -- Create, rename, delete projects. Each project contains documents and system designs.
-2. **Document Forge** -- Monaco-powered editor supporting Markdown (with live preview), XML, and plain text. Auto-save (1.5s debounce). Export to PDF, HTML, or native format.
-3. **System Architect** -- Visual node-based canvas (React Flow) for designing system architectures. Predefined node templates: Database, Server, Frontend, Cloud Service, API, Storage. Smooth-step connections with amber arrowheads. Freehand drawing overlay with color/size controls. Mouse wheel zoom + drag panning.
-4. **Algorithm Visualizer** -- Separate mode within System Architect with specialized node templates for Sorting (Array, Comparator, Swap, Partition), Graph & Tree (Tree Node, Vertex, Visited, BFS Queue, DFS Stack), Data Structures (Linked Node, Stack, Queue, Hash Table, Heap), and General (Variable, Pointer, Condition, Output).
-5. **Authentication** -- Email/password signup and login. Profile settings (display name). Password change.
-6. **PWA** -- Installable, offline asset caching, service worker.
-7. **Settings** -- Profile management, password change, account deletion request.
+## Phase 1: Provider Foundation
 
----
+### Providers in scope (per your selection)
+OpenAI, Anthropic, Google (Gemini), Groq. (OpenRouter / Ollama deferred.)
 
-## Landing Page Rewrite
+### Provider abstraction (`src/lib/ai/`)
+- `types.ts` — `ProviderId`, `ProviderConfig`, `ChatMessage`, `AIRequest`, `AIResponse`, `AIError` types.
+- `providers/openai.ts`, `anthropic.ts`, `google.ts`, `groq.ts` — each exports `{ id, label, defaultModel, models[], chat(request, config), testConnection(config) }`.
+  - OpenAI: POST `https://api.openai.com/v1/chat/completions`, Bearer auth.
+  - Anthropic: POST `https://api.anthropic.com/v1/messages`, `x-api-key` + `anthropic-version` + `anthropic-dangerous-direct-browser-access: true`.
+  - Google: POST `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key=…`.
+  - Groq: POST `https://api.groq.com/openai/v1/chat/completions`, Bearer auth (OpenAI-compatible).
+- `registry.ts` — unified `callAI({ provider, model, system, messages, temperature })` that routes to the right provider, with fallback chain (primary → backup → friendly error).
+- `storage.ts` — typed read/write of AI settings in `localStorage` under `fenix.ai.settings.v1` (provider, model, apiKey, backupProvider, backupApiKey).
 
-Rebrand every occurrence of "TextForge" to **Fenix** across all affected files, and rewrite the landing page copy to reflect the full product accurately.
+### Settings UI (`src/pages/Settings.tsx`)
+Add a new "AI Configuration" `Card` below Profile, above Security:
+- Primary provider `Select` (OpenAI / Anthropic / Google / Groq) with logo/label.
+- Model `Select` filtered by selected provider.
+- API key `Input` (type=password, show/hide toggle button).
+- "Test Connection" `Button` with inline status (idle/loading/success/failure + message). Sends a minimal `"Reply with 'ok'"` request.
+- Collapsible "Backup Provider" section with the same fields.
+- "Clear Keys" destructive button with confirmation `AlertDialog`.
+- Inline note: "Keys are stored only in your browser. Fenix never sees them."
 
-### Files to modify
+### Error handling
+Friendly messages for invalid key (401), rate limit (429, surface retry-after), model unavailable (404), network failure. Fallback chain attempts backup provider on 429/5xx.
 
-1. **`index.html`** -- Update `<title>`, meta tags, and OG tags to use "Fenix".
+## Phase 2: Document → PRD Generator
 
-2. **`src/pages/Index.tsx`** -- Full content rewrite:
-   - Hero: "The Developer's Command Center" stays as tagline concept but refreshed copy referencing Fenix
-   - Subtitle: Emphasize the three pillars -- Document Forge, System Architect, Algorithm Visualizer
-   - Features array: Update to 4 cards reflecting actual features (Document Forge, System Architect, Algorithm Visualizer, PWA/Offline)
-   - Format badges: Keep Markdown/XML/Plain Text
-   - Mock editor preview: Update to show "Fenix" in the mock content
-   - CTA section: Update copy with Fenix branding
-   - Footer: "Fenix" branding
+### Entry point
+In `src/components/Editor/EditorToolbar.tsx`, add a "Generate PRD" `Button` (Sparkles icon) next to Save. Disabled when no AI provider is configured (tooltip: "Configure AI in Settings").
 
-3. **`src/components/Navbar.tsx`** -- Change "TextForge" to "Fenix" in the logo text.
+### PRD modal (`src/components/AI/PRDGeneratorDialog.tsx`)
+Triggered from the editor. Contents:
+- Template selector `Select`: Agile, Technical Spec, Lean Startup, Custom.
+- Optional "Custom instructions" `Textarea` (used by Custom template; appended otherwise).
+- "Generate" button → calls `callAI` with a template-specific system prompt + the document content.
+- Loading state with skeleton + cancel.
+- Two-pane preview after generation (source on left via read-only Monaco, generated PRD on right via Monaco editable markdown).
+- Footer actions: Regenerate, Discard, "Save as New Document".
 
-4. **`src/components/PWAInstallPrompt.tsx`** -- Change any "TextForge" references to "Fenix".
+### Prompt engineering (`src/lib/ai/prompts/prd.ts`)
+- One `systemPromptFor(template)` per template, each containing:
+  - Role + output contract (markdown with strict H2 sections from the spec: Overview, User Stories, Technical Requirements, Functional Requirements, Non-Functional Requirements, Acceptance Criteria, Timeline & Milestones, Dependencies & Risks).
+  - One short few-shot example tailored to the template.
+  - Instruction to mark assumptions explicitly with `> Assumption:` blockquotes when the source is incomplete.
+- `buildUserPrompt({ sourceMarkdown, customInstructions })`.
 
-5. **`vite.config.ts`** -- Update PWA manifest `name` and `short_name` to "Fenix".
+### Saving the PRD
+On "Save as New Document": call `useDocuments.createDocument(projectId)` then `updateDocument` with `{ title: \`PRD — ${sourceTitle}\`, content: generated, format: 'markdown' }`. Toast on success and switch the workspace to the new document.
 
-### Content direction
+### Generation history (lightweight)
+- New table `prd_generations` (id, user_id, project_id, source_document_id, template, output_markdown, created_at). RLS scoped to `auth.uid()`; standard grants. (Only persists the output, not the API key.)
+- New hook `usePRDGenerations(projectId)` with list + create.
+- "History" tab inside the PRD dialog listing past generations for the current project with click-to-reopen.
 
-- Hero heading: "The Developer's Command Center" (keep) with "Fenix" as the glowing brand word
-- Subheading: "Document, design, and visualize -- all in one workspace. Write in Markdown, architect your systems, and map out algorithms with Fenix."
-- Feature cards:
-  - Document Forge: Write in Markdown, XML, or plain text with Monaco editor, live preview, auto-save, and export to PDF/HTML
-  - System Architect: Design system architectures visually with drag-and-drop nodes, curved connections, and freehand drawing
-  - Algorithm Visualizer: Map out sorting, graph traversal, and data structure algorithms with specialized node templates
-  - Works Offline: Install as a native app. Your work is cached and available even without internet
-- CTA: "Ready to build?" / "Start building with Fenix -- it's free"
-- Footer: "Fenix. Built for developers."
+## Out of scope (this iteration)
+- Vibe Coding Prompts, Auto-Generate Visual Nodes, Agentic Workflow Prompts (Phase 2 items 2–4).
+- OpenRouter, Ollama auto-detect.
+- Passphrase encryption of localStorage, token usage estimator, context compression beyond simple truncation, streaming display (Phase 3 polish).
 
+## Technical details (for reference)
+
+```text
+src/
+  lib/ai/
+    types.ts
+    storage.ts
+    registry.ts
+    providers/
+      openai.ts
+      anthropic.ts
+      google.ts
+      groq.ts
+    prompts/
+      prd.ts
+  components/AI/
+    PRDGeneratorDialog.tsx
+    ProviderStatusBadge.tsx
+  hooks/
+    useAISettings.ts
+    usePRDGenerations.ts
+  pages/Settings.tsx              (extended)
+  components/Editor/EditorToolbar.tsx  (extended)
+supabase/migrations/
+  <timestamp>_prd_generations.sql
+```
+
+Migration sketch:
+```sql
+CREATE TABLE public.prd_generations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  source_document_id uuid REFERENCES public.documents(id) ON DELETE SET NULL,
+  template text NOT NULL,
+  output_markdown text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.prd_generations TO authenticated;
+GRANT ALL ON public.prd_generations TO service_role;
+ALTER TABLE public.prd_generations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "own rows select" ON public.prd_generations FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "own rows insert" ON public.prd_generations FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "own rows delete" ON public.prd_generations FOR DELETE TO authenticated USING (auth.uid() = user_id);
+```
+
+After approval, I will implement Phase 1 and the PRD Generator in one build pass, then we can iterate on the remaining 3 features.
