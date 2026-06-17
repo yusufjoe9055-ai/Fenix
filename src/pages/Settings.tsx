@@ -27,6 +27,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { toast } from 'sonner';
+import { AISettingsCard } from '@/components/AI/AISettingsCard';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -159,6 +160,14 @@ const Settings = () => {
             </CardContent>
           </Card>
         </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+        >
+          <AISettingsCard />
+        </motion.div>
+
 
         {/* Security Section */}
         <motion.div

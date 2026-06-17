@@ -1,0 +1,53 @@
+import { AIError, ProviderDef } from '../types';
+
+export const googleProvider: ProviderDef = {
+  id: 'google',
+  label: 'Google Gemini',
+  defaultModel: 'gemini-1.5-flash',
+  models: [
+    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  ],
+  async chat(req, cfg) {
+    const contents = req.messages.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+    const body: any = {
+      contents,
+      generationConfig: {
+        temperature: req.temperature ?? 0.7,
+        maxOutputTokens: req.maxTokens,
+      },
+    };
+    if (req.system) {
+      body.systemInstruction = { parts: [{ text: req.system }] };
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      cfg.model
+    )}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new AIError(`Google error: ${errText.slice(0, 200)}`, {
+        status: res.status,
+        retryable: res.status === 429 || res.status >= 500,
+      });
+    }
+    const data = await res.json();
+    const text =
+      data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? '').join('') ?? '';
+    return { text, provider: 'google', model: cfg.model };
+  },
+  async testConnection(cfg) {
+    await this.chat(
+      { messages: [{ role: 'user', content: "Reply with 'ok'." }], maxTokens: 10 },
+      cfg
+    );
+  },
+};

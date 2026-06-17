@@ -1,0 +1,49 @@
+import { AIError, ProviderDef } from '../types';
+
+export const anthropicProvider: ProviderDef = {
+  id: 'anthropic',
+  label: 'Anthropic',
+  defaultModel: 'claude-3-5-haiku-latest',
+  models: [
+    { id: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet' },
+    { id: 'claude-3-5-haiku-latest', label: 'Claude 3.5 Haiku' },
+    { id: 'claude-3-opus-latest', label: 'Claude 3 Opus' },
+  ],
+  async chat(req, cfg) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': cfg.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        max_tokens: req.maxTokens ?? 4096,
+        temperature: req.temperature ?? 0.7,
+        system: req.system,
+        messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new AIError(`Anthropic error: ${errText.slice(0, 200)}`, {
+        status: res.status,
+        retryable: res.status === 429 || res.status >= 500,
+      });
+    }
+    const data = await res.json();
+    const text = (data.content ?? [])
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => b.text)
+      .join('');
+    return { text, provider: 'anthropic', model: cfg.model };
+  },
+  async testConnection(cfg) {
+    await this.chat(
+      { messages: [{ role: 'user', content: "Reply with 'ok'." }], maxTokens: 10 },
+      cfg
+    );
+  },
+};

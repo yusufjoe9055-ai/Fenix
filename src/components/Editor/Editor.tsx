@@ -10,6 +10,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable';
+import { PRDGeneratorDialog } from '@/components/AI/PRDGeneratorDialog';
 
 export interface Document {
   id: string;
@@ -23,12 +24,14 @@ interface EditorProps {
   document: Document;
   onSave: (doc: Partial<Document>) => Promise<void>;
   onBack: () => void;
+  projectId?: string;
 }
 
-export function Editor({ document, onSave, onBack }: EditorProps) {
+export function Editor({ document, onSave, onBack, projectId }: EditorProps) {
   const [title, setTitle] = useState(document.title);
   const [content, setContent] = useState(document.content);
   const [format, setFormat] = useState<DocumentFormat>(document.format);
+  const [prdOpen, setPrdOpen] = useState(false);
 
   const handleSave = useCallback(
     async (contentToSave: string) => {
@@ -88,7 +91,19 @@ export function Editor({ document, onSave, onBack }: EditorProps) {
         onTitleChange={handleTitleChange}
         onSave={handleManualSave}
         onBack={onBack}
+        onGeneratePRD={projectId ? () => setPrdOpen(true) : undefined}
       />
+
+      {projectId && (
+        <PRDGeneratorDialog
+          open={prdOpen}
+          onOpenChange={setPrdOpen}
+          sourceTitle={title}
+          sourceContent={content}
+          sourceDocumentId={document.id}
+          projectId={projectId}
+        />
+      )}
 
       <div className="flex-1 overflow-hidden">
         {format === 'markdown' ? (

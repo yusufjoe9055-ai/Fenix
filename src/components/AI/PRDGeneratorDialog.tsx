@@ -1,0 +1,250 @@
+import { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Loader2, Sparkles, Save, RefreshCw, History } from 'lucide-react';
+import { toast } from 'sonner';
+import { PRDTemplate, PRD_TEMPLATES, systemPromptFor, buildUserPrompt } from '@/lib/ai/prompts/prd';
+import { callAI } from '@/lib/ai/registry';
+import { AIError } from '@/lib/ai/types';
+import { useAISettings } from '@/hooks/useAISettings';
+import { usePRDGenerations } from '@/hooks/usePRDGenerations';
+import { useDocuments } from '@/hooks/useDocuments';
+import { formatDistanceToNow } from 'date-fns';
+
+interface PRDGeneratorDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sourceTitle: string;
+  sourceContent: string;
+  sourceDocumentId: string;
+  projectId: string;
+}
+
+export function PRDGeneratorDialog({
+  open,
+  onOpenChange,
+  sourceTitle,
+  sourceContent,
+  sourceDocumentId,
+  projectId,
+}: PRDGeneratorDialogProps) {
+  const [template, setTemplate] = useState<PRDTemplate>('agile');
+  const [customInstructions, setCustomInstructions] = useState('');
+  const [output, setOutput] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const { isConfigured } = useAISettings();
+  const { generations, createGeneration } = usePRDGenerations(projectId);
+  const { createDocument, updateDocument } = useDocuments(projectId);
+
+  useEffect(() => {
+    if (!open) {
+      setOutput('');
+    }
+  }, [open]);
+
+  const handleGenerate = async () => {
+    if (!isConfigured) {
+      toast.error('Configure an AI provider in Settings first.');
+      return;
+    }
+    setIsGenerating(true);
+    setOutput('');
+    try {
+      const res = await callAI({
+        system: systemPromptFor(template),
+        messages: [
+          {
+            role: 'user',
+            content: buildUserPrompt({
+              sourceTitle,
+              sourceMarkdown: sourceContent,
+              customInstructions: customInstructions.trim() || undefined,
+            }),
+          },
+        ],
+        temperature: 0.4,
+        maxTokens: 4096,
+      });
+      setOutput(res.text);
+      try {
+        await createGeneration({
+          template,
+          output_markdown: res.text,
+          source_document_id: sourceDocumentId,
+        });
+      } catch {
+        /* history is best-effort */
+      }
+    } catch (err) {
+      const e = err as AIError;
+      toast.error(e.message || 'Generation failed');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSaveAsDocument = async () => {
+    if (!output.trim()) return;
+    setIsSaving(true);
+    try {
+      const doc = await createDocument(projectId);
+      await updateDocument({
+        id: doc.id,
+        title: `PRD — ${sourceTitle || 'Untitled'}`,
+        content: output,
+        format: 'markdown',
+      });
+      toast.success('PRD saved as new document');
+      onOpenChange(false);
+    } catch {
+      toast.error('Failed to save PRD');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Generate PRD
+          </DialogTitle>
+          <DialogDescription>
+            Turn this document into a structured Product Requirements Document.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs defaultValue="generate" className="flex-1 overflow-hidden flex flex-col">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="generate" className="gap-2">
+              <Sparkles className="h-4 w-4" /> Generate
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2">
+              <History className="h-4 w-4" /> History ({generations.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="generate" className="flex-1 overflow-hidden flex flex-col gap-4 mt-4">
+            {!isConfigured && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 text-destructive text-sm p-3">
+                No AI provider configured. Open <strong>Settings → AI Configuration</strong> to add a key.
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Template</Label>
+                <Select value={template} onValueChange={(v) => setTemplate(v as PRDTemplate)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRD_TEMPLATES.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <div className="flex flex-col">
+                          <span>{t.label}</span>
+                          <span className="text-xs text-muted-foreground">{t.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Custom instructions (optional)</Label>
+                <Textarea
+                  value={customInstructions}
+                  onChange={(e) => setCustomInstructions(e.target.value)}
+                  placeholder="e.g. focus on mobile-only scope, target enterprise users…"
+                  className="min-h-[40px] h-10"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button onClick={handleGenerate} disabled={isGenerating || !isConfigured} className="gap-2">
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {output ? 'Regenerate' : 'Generate PRD'}
+              </Button>
+              {output && (
+                <Button variant="outline" onClick={handleGenerate} disabled={isGenerating} className="gap-2">
+                  <RefreshCw className="h-4 w-4" /> Try again
+                </Button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 flex-1 overflow-hidden">
+              <div className="flex flex-col gap-2 overflow-hidden">
+                <Label className="text-xs uppercase text-muted-foreground">Source</Label>
+                <div className="flex-1 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs font-mono whitespace-pre-wrap">
+                  {sourceContent || <span className="text-muted-foreground">(empty document)</span>}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 overflow-hidden">
+                <Label className="text-xs uppercase text-muted-foreground">Generated PRD</Label>
+                <Textarea
+                  value={output}
+                  onChange={(e) => setOutput(e.target.value)}
+                  placeholder={isGenerating ? 'Generating…' : 'PRD output will appear here.'}
+                  className="flex-1 font-mono text-xs resize-none"
+                />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="history" className="flex-1 overflow-auto mt-4">
+            {generations.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-8">
+                No PRDs generated yet for this project.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {generations.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setOutput(g.output_markdown)}
+                    className="w-full text-left p-3 rounded-md border border-border hover:border-primary/40 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium capitalize">{g.template}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(g.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {g.output_markdown.slice(0, 200)}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          <Button onClick={handleSaveAsDocument} disabled={!output.trim() || isSaving} className="gap-2">
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save as new document
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

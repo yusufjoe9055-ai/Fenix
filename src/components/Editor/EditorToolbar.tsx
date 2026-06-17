@@ -29,7 +29,8 @@ import {
   ArrowLeft,
   FileDown,
   FileCode,
-  FileType
+  FileType,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -43,6 +44,7 @@ interface EditorToolbarProps {
   onTitleChange: (title: string) => void;
   onSave: () => void;
   onBack: () => void;
+  onGeneratePRD?: () => void;
 }
 
 const SaveIndicator = ({ status }: { status: SaveStatus }) => {
@@ -96,6 +98,7 @@ export function EditorToolbar({
   onTitleChange,
   onSave,
   onBack,
+  onGeneratePRD,
 }: EditorToolbarProps) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -166,6 +169,18 @@ export function EditorToolbar({
           <Save className="h-4 w-4 mr-1.5" />
           Save
         </Button>
+
+        {onGeneratePRD && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onGeneratePRD}
+            className="text-primary hover:text-primary"
+          >
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            Generate PRD
+          </Button>
+        )}
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
