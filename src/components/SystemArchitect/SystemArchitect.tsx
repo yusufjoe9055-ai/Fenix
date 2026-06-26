@@ -266,7 +266,7 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack, document
         color: getColorFromType(n.type),
       },
     }));
-    const newEdges: Edge[] = board.edges
+    const newEdges = board.edges
       .filter((e) => idMap.has(e.source) && idMap.has(e.target))
       .map((e, i) => ({
         id: `edge-ai-${Date.now()}-${i}`,
