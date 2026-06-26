@@ -568,6 +568,14 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack, document
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ArchitectureGeneratorDialog
+        open={generateDialogOpen}
+        onOpenChange={setGenerateDialogOpen}
+        mode={mode}
+        documents={documents}
+        onApply={applyGeneratedBoard}
+      />
     </div>
   );
 }
