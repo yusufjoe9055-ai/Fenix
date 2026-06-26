@@ -24,6 +24,7 @@ import {
   HelpCircle, Terminal,
 } from 'lucide-react';
 import { ArchitectureGeneratorDialog } from '@/components/AI/ArchitectureGeneratorDialog';
+import dagre from '@dagrejs/dagre';
 import { Button } from '@/components/ui/button';
 import { SystemDesign, BoardState } from '@/hooks/useSystemDesigns';
 import { ArchitectNode } from './ArchitectNode';
@@ -245,27 +246,54 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack, document
   };
 
   const applyGeneratedBoard = useCallback((board: BoardState) => {
-    // Offset incoming nodes below existing content to avoid overlap.
-    const maxY = nodes.reduce((m, n) => Math.max(m, n.position.y), 0);
-    const yOffset = nodes.length > 0 ? maxY + 200 : 0;
     // Remap incoming ids so they don't collide with existing ones.
     const idMap = new Map<string, string>();
     board.nodes.forEach((n) => {
       nodeIdCounter.current += 1;
       idMap.set(n.id, `node-${nodeIdCounter.current}`);
     });
-    const newNodes: ArchitectFlowNode[] = board.nodes.map((n) => ({
-      id: idMap.get(n.id)!,
-      type: 'architect',
-      position: { x: n.position.x, y: n.position.y + yOffset },
-      data: {
-        label: n.data.label,
-        description: n.data.description,
-        nodeType: n.type,
-        icon: getIconFromType(n.type),
-        color: getColorFromType(n.type),
-      },
-    }));
+
+    // Layered layout via dagre — left→right with generous spacing.
+    const NODE_W = 220;
+    const NODE_H = 90;
+    const g = new dagre.graphlib.Graph();
+    g.setGraph({ rankdir: 'LR', nodesep: 60, ranksep: 120, marginx: 40, marginy: 40 });
+    g.setDefaultEdgeLabel(() => ({}));
+    board.nodes.forEach((n) => {
+      g.setNode(idMap.get(n.id)!, { width: NODE_W, height: NODE_H });
+    });
+    board.edges.forEach((e) => {
+      const s = idMap.get(e.source);
+      const t = idMap.get(e.target);
+      if (s && t) g.setEdge(s, t);
+    });
+    dagre.layout(g);
+
+    // Place laid-out graph to the right of any existing content.
+    const maxX = nodes.reduce((m, n) => Math.max(m, n.position.x + 220), 0);
+    const xOffset = nodes.length > 0 ? maxX + 120 : 80;
+    const yOffset = 80;
+
+    const newNodes: ArchitectFlowNode[] = board.nodes.map((n) => {
+      const id = idMap.get(n.id)!;
+      const pos = g.node(id);
+      return {
+        id,
+        type: 'architect',
+        position: {
+          x: xOffset + (pos?.x ?? 0) - NODE_W / 2,
+          y: yOffset + (pos?.y ?? 0) - NODE_H / 2,
+        },
+        data: {
+          label: n.data.label,
+          description: n.data.description,
+          nodeType: n.type,
+          icon: getIconFromType(n.type),
+          color: getColorFromType(n.type),
+        },
+      };
+    });
+
     const newEdges = board.edges
       .filter((e) => idMap.has(e.source) && idMap.has(e.target))
       .map((e, i) => ({
@@ -285,6 +313,7 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack, document
     setEdges((eds) => [...eds, ...(newEdges as typeof eds)]);
     toast.success(`Added ${newNodes.length} nodes and ${newEdges.length} connections`);
   }, [nodes, setNodes, setEdges]);
+
 
 
   const handleManualSave = async () => {
