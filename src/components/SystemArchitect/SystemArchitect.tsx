@@ -386,6 +386,11 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack, document
             Draw
           </Button>
 
+          <Button variant="outline" className="gap-2" onClick={() => setGenerateDialogOpen(true)}>
+            <Sparkles className="h-4 w-4" />
+            Generate
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">
