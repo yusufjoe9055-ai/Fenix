@@ -282,7 +282,7 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack, document
         labelBgBorderRadius: 4,
       }));
     setNodes((nds) => [...nds, ...newNodes]);
-    setEdges((eds) => [...eds, ...newEdges]);
+    setEdges((eds) => [...eds, ...(newEdges as typeof eds)]);
     toast.success(`Added ${newNodes.length} nodes and ${newEdges.length} connections`);
   }, [nodes, setNodes, setEdges]);
 
