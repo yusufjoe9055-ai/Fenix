@@ -119,6 +119,7 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack, document
   const [customNodeDialog, setCustomNodeDialog] = useState(false);
   const [customNodeColor, setCustomNodeColor] = useState('blue');
   const [customNodeLabel, setCustomNodeLabel] = useState('Custom Node');
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
 
   // Escape key exits draw mode
   useEffect(() => {
