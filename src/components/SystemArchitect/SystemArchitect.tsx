@@ -244,6 +244,49 @@ export function SystemArchitect({ design, onSave, onUpdateName, onBack, document
     setCustomNodeColor('blue');
   };
 
+  const applyGeneratedBoard = useCallback((board: BoardState) => {
+    // Offset incoming nodes below existing content to avoid overlap.
+    const maxY = nodes.reduce((m, n) => Math.max(m, n.position.y), 0);
+    const yOffset = nodes.length > 0 ? maxY + 200 : 0;
+    // Remap incoming ids so they don't collide with existing ones.
+    const idMap = new Map<string, string>();
+    board.nodes.forEach((n) => {
+      nodeIdCounter.current += 1;
+      idMap.set(n.id, `node-${nodeIdCounter.current}`);
+    });
+    const newNodes: ArchitectFlowNode[] = board.nodes.map((n) => ({
+      id: idMap.get(n.id)!,
+      type: 'architect',
+      position: { x: n.position.x, y: n.position.y + yOffset },
+      data: {
+        label: n.data.label,
+        description: n.data.description,
+        nodeType: n.type,
+        icon: getIconFromType(n.type),
+        color: getColorFromType(n.type),
+      },
+    }));
+    const newEdges: Edge[] = board.edges
+      .filter((e) => idMap.has(e.source) && idMap.has(e.target))
+      .map((e, i) => ({
+        id: `edge-ai-${Date.now()}-${i}`,
+        source: idMap.get(e.source)!,
+        target: idMap.get(e.target)!,
+        type: 'smoothstep',
+        label: e.label || '',
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#F59E0B', width: 20, height: 20 },
+        style: { stroke: '#F59E0B', strokeWidth: 2 },
+        labelStyle: { fill: 'hsl(var(--foreground))', fontWeight: 500 },
+        labelBgStyle: { fill: 'hsl(var(--card))', fillOpacity: 0.9 },
+        labelBgPadding: [8, 4] as [number, number],
+        labelBgBorderRadius: 4,
+      }));
+    setNodes((nds) => [...nds, ...newNodes]);
+    setEdges((eds) => [...eds, ...newEdges]);
+    toast.success(`Added ${newNodes.length} nodes and ${newEdges.length} connections`);
+  }, [nodes, setNodes, setEdges]);
+
+
   const handleManualSave = async () => {
     const boardState: BoardState = {
       nodes: nodes.map((n) => ({
