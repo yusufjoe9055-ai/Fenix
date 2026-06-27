@@ -153,30 +153,18 @@ export async function exportDocument({ title, content, format, exportAs }: Expor
   
   if (exportAs === 'pdf') {
     const htmlContent = getHtmlDocument(title, content, format);
-    
-    // Dynamically import html2pdf
-    const html2pdf = (await import('html2pdf.js')).default;
-    
-    // Create a temporary container
-    const container = document.createElement('div');
-    container.innerHTML = htmlContent;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-    
-    try {
-      await html2pdf()
-        .set({
-          margin: [15, 15, 15, 15],
-          filename: `${sanitizedTitle}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        })
-        .from(container.querySelector('body') || container)
-        .save();
-    } finally {
-      document.body.removeChild(container);
+    // Use the browser's native print-to-PDF to avoid bundling vulnerable PDF libs.
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      throw new Error('Unable to open print window. Please allow popups for this site.');
     }
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    // Give the new document a tick to render before printing.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    printWindow.focus();
+    printWindow.print();
   }
+
 }
