@@ -1,0 +1,67 @@
+// WebCrypto AES-GCM encryption with PBKDF2-derived key.
+// Used to protect AI provider API keys stored in localStorage behind a user passphrase.
+
+const PBKDF2_ITERATIONS = 250_000;
+const KEY_LEN = 256;
+const SALT_LEN = 16;
+const IV_LEN = 12;
+
+export interface EncryptedBlob {
+  v: 1;
+  salt: string; // base64
+  iv: string; // base64
+  ct: string; // base64
+}
+
+function toB64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+}
+
+function fromB64(s: string): Uint8Array {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  const baseKey = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(passphrase),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    baseKey,
+    { name: 'AES-GCM', length: KEY_LEN },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+export async function encryptJSON(value: unknown, passphrase: string): Promise<EncryptedBlob> {
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
+  const key = await deriveKey(passphrase, salt);
+  const plaintext = new TextEncoder().encode(JSON.stringify(value));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+  return { v: 1, salt: toB64(salt), iv: toB64(iv), ct: toB64(new Uint8Array(ct)) };
+}
+
+export async function decryptJSON<T = unknown>(
+  blob: EncryptedBlob,
+  passphrase: string
+): Promise<T> {
+  const key = await deriveKey(passphrase, fromB64(blob.salt));
+  const pt = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: fromB64(blob.iv) },
+    key,
+    fromB64(blob.ct)
+  );
+  return JSON.parse(new TextDecoder().decode(pt)) as T;
+}
