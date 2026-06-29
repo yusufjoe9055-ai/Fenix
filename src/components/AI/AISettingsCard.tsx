@@ -26,7 +26,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Sparkles, Eye, EyeOff, Loader2, Check, AlertCircle, ChevronDown, Trash2 } from 'lucide-react';
+import {
+  Sparkles,
+  Eye,
+  EyeOff,
+  Loader2,
+  Check,
+  AlertCircle,
+  ChevronDown,
+  Trash2,
+  Lock,
+  Unlock,
+  ShieldCheck,
+} from 'lucide-react';
 import { useAISettings } from '@/hooks/useAISettings';
 import { PROVIDER_LIST, PROVIDERS, providerNeedsKey } from '@/lib/ai/registry';
 import { ProviderId, AIError } from '@/lib/ai/types';
@@ -36,13 +48,7 @@ import { cn } from '@/lib/utils';
 type SlotKey = 'primary' | 'backup';
 type TestStatus = 'idle' | 'loading' | 'success' | 'error';
 
-function ProviderSlot({
-  slot,
-  label,
-}: {
-  slot: SlotKey;
-  label: string;
-}) {
+function ProviderSlot({ slot, label }: { slot: SlotKey; label: string }) {
   const { settings, update } = useAISettings();
   const current = settings[slot];
   const [provider, setProvider] = useState<ProviderId>(current?.provider ?? 'lovable');
@@ -69,11 +75,15 @@ function ProviderSlot({
       toast.error('Enter an API key');
       return;
     }
-    update({
-      ...settings,
-      [slot]: { provider, model, apiKey: needsKey ? apiKey.trim() : '' },
-    });
-    toast.success(`${label} provider saved`);
+    try {
+      update({
+        ...settings,
+        [slot]: { provider, model, apiKey: needsKey ? apiKey.trim() : '' },
+      });
+      toast.success(`${label} provider saved`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   const handleTest = async () => {
@@ -191,9 +201,219 @@ function ProviderSlot({
   );
 }
 
+function EncryptionPanel() {
+  const {
+    encrypted,
+    unlocked,
+    unlock,
+    lock,
+    enableEncryption,
+    disableEncryption,
+    changePassphrase,
+  } = useAISettings();
+  const [open, setOpen] = useState(false);
+  const [pass1, setPass1] = useState('');
+  const [pass2, setPass2] = useState('');
+  const [oldPass, setOldPass] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const run = async (fn: () => Promise<void>, success: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      toast.success(success);
+      setPass1('');
+      setPass2('');
+      setOldPass('');
+    } catch (err) {
+      toast.error((err as Error).message || 'Operation failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Locked state — show unlock form only.
+  if (encrypted && !unlocked) {
+    return (
+      <div className="space-y-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-4">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Lock className="h-4 w-4 text-amber-500" />
+          AI keys are encrypted &amp; locked
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Enter your passphrase to unlock keys for this session.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            type="password"
+            placeholder="Passphrase"
+            value={pass1}
+            onChange={(e) => setPass1(e.target.value)}
+            className="font-mono"
+          />
+          <Button
+            size="sm"
+            disabled={busy || !pass1}
+            onClick={() => run(() => unlock(pass1), 'Unlocked')}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Unlock'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" size="sm" className="gap-2">
+          <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          Encryption{' '}
+          <span className="text-xs text-muted-foreground">
+            ({encrypted ? 'enabled' : 'off'})
+          </span>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-3">
+        <div className="space-y-3 rounded-md border border-border p-4">
+          {!encrypted ? (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Encrypt your stored API keys with a passphrase (AES-256-GCM, PBKDF2). You'll be asked
+                for the passphrase once per browser session.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Input
+                  type="password"
+                  placeholder="Passphrase (min 8 chars)"
+                  value={pass1}
+                  onChange={(e) => setPass1(e.target.value)}
+                  className="font-mono"
+                />
+                <Input
+                  type="password"
+                  placeholder="Confirm passphrase"
+                  value={pass2}
+                  onChange={(e) => setPass2(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+              <Button
+                size="sm"
+                disabled={busy || pass1.length < 8 || pass1 !== pass2}
+                onClick={() => run(() => enableEncryption(pass1), 'Encryption enabled')}
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enable encryption'}
+              </Button>
+              {pass1 && pass2 && pass1 !== pass2 && (
+                <p className="text-xs text-destructive">Passphrases don't match.</p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Keys are encrypted. Unlocked for this session.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    lock();
+                    toast.success('Locked');
+                  }}
+                  className="gap-2"
+                >
+                  <Lock className="h-4 w-4" />
+                  Lock now
+                </Button>
+              </div>
+
+              <div className="pt-2 border-t border-border space-y-2">
+                <Label className="text-xs">Change passphrase</Label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Input
+                    type="password"
+                    placeholder="Current"
+                    value={oldPass}
+                    onChange={(e) => setOldPass(e.target.value)}
+                    className="font-mono"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="New"
+                    value={pass1}
+                    onChange={(e) => setPass1(e.target.value)}
+                    className="font-mono"
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Confirm new"
+                    value={pass2}
+                    onChange={(e) => setPass2(e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || !oldPass || pass1.length < 8 || pass1 !== pass2}
+                  onClick={() => run(() => changePassphrase(oldPass, pass1), 'Passphrase changed')}
+                >
+                  Change passphrase
+                </Button>
+              </div>
+
+              <div className="pt-2 border-t border-border">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 text-destructive">
+                      <Unlock className="h-4 w-4" />
+                      Disable encryption
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Disable encryption?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Keys will be stored in plaintext in this browser. Enter your current
+                        passphrase to confirm.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <Input
+                      type="password"
+                      placeholder="Current passphrase"
+                      value={oldPass}
+                      onChange={(e) => setOldPass(e.target.value)}
+                      className="font-mono"
+                    />
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() =>
+                          run(() => disableEncryption(oldPass), 'Encryption disabled')
+                        }
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Disable
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function AISettingsCard() {
-  const { settings, clear } = useAISettings();
+  const { settings, clear, encrypted, unlocked } = useAISettings();
   const [backupOpen, setBackupOpen] = useState(!!settings.backup);
+  const locked = encrypted && !unlocked;
 
   return (
     <Card>
@@ -208,52 +428,59 @@ export function AISettingsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ProviderSlot slot="primary" label="Primary provider" />
+        <EncryptionPanel />
 
-        <Collapsible open={backupOpen} onOpenChange={setBackupOpen}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ChevronDown
-                className={cn('h-4 w-4 transition-transform', backupOpen && 'rotate-180')}
-              />
-              Backup provider (optional)
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-3">
-            <ProviderSlot slot="backup" label="Backup provider" />
-          </CollapsibleContent>
-        </Collapsible>
+        {!locked && (
+          <>
+            <ProviderSlot slot="primary" label="Primary provider" />
 
-        <div className="pt-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 text-destructive">
-                <Trash2 className="h-4 w-4" />
-                Clear all AI keys
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove all AI keys?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This deletes your AI provider keys from this browser. You can paste them again any time.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    clear();
-                    toast.success('AI keys cleared');
-                  }}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  Clear
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+            <Collapsible open={backupOpen} onOpenChange={setBackupOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <ChevronDown
+                    className={cn('h-4 w-4 transition-transform', backupOpen && 'rotate-180')}
+                  />
+                  Backup provider (optional)
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-3">
+                <ProviderSlot slot="backup" label="Backup provider" />
+              </CollapsibleContent>
+            </Collapsible>
+
+            <div className="pt-2">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                    Clear all AI keys
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove all AI keys?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This deletes your AI provider keys (and any encryption blob) from this browser.
+                      You can paste them again any time.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        clear();
+                        toast.success('AI keys cleared');
+                      }}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Clear
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

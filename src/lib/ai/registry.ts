@@ -3,7 +3,7 @@ import { anthropicProvider } from './providers/anthropic';
 import { googleProvider } from './providers/google';
 import { groqProvider } from './providers/groq';
 import { lovableProvider } from './providers/lovable';
-import { loadSettings } from './storage';
+import { loadSettings, isEncrypted, isUnlocked } from './storage';
 import { AIError, AIRequest, AIResponse, ProviderDef, ProviderId } from './types';
 
 export const PROVIDERS: Record<ProviderId, ProviderDef> = {
@@ -30,11 +30,15 @@ export function providerNeedsKey(id: ProviderId): boolean {
 }
 
 export async function callAI(req: AIRequest): Promise<AIResponse> {
+  if (isEncrypted() && !isUnlocked()) {
+    throw new AIError('AI keys are locked. Open Settings → AI Configuration and unlock.');
+  }
   const settings = loadSettings();
   const primary = settings.primary;
   if (!primary || (providerNeedsKey(primary.provider) && !primary.apiKey)) {
     throw new AIError('No AI provider configured. Open Settings → AI Configuration.');
   }
+
 
   const tryOne = async (cfg: { provider: ProviderId; model: string; apiKey: string }) => {
     const provider = PROVIDERS[cfg.provider];
